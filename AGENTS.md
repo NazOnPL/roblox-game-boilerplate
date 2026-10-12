@@ -30,6 +30,7 @@
 
 - This is a generic game boilerplate. Keep it game-agnostic: no genre-specific systems, assets or design decisions unless the user asks. Ask before making material design decisions.
 - Explicit user instructions take precedence.
+- Design decisions live in [docs/Design.md](docs/Design.md): what the game is and why, with owner decisions dated once. Current state lives in [docs/Handoff.md](docs/Handoff.md): what is built, what is verified, what needs a human, open items. Read the handoff first when picking work up, and update both before ending a session. The code is the truth; git history is the changelog.
 
 ## Setup and checks
 
