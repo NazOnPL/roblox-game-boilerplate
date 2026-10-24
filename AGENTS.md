@@ -47,6 +47,7 @@ rojo serve default.project.json --address 127.0.0.1
 - In Play, output shows `[Game Boilerplate] Server services ready`, `Client controllers ready` and a Packet round trip. Both Bootstraps set a `Ready` attribute.
 - `./scripts/check.ps1` is the one command to run after every change. It formats `src` with StyLua, regenerates the sourcemap, runs luau-lsp type and lint analysis, and does a Rojo build. Fix every error it reports and rerun it until it passes.
 - `rojo build` output is code-only, not a replacement for the authored place.
+- `default.project.json` ignores temp files (`globIgnorePaths`). Editors and agents save through temp files such as `Main.server.luau.tmp.4821`; without the ignore, Rojo tries to sync them and stops when they vanish. Keep the ignore when editing the project file. If Rojo stops with a missing-file error, look for a temp-file pattern the list misses.
 
 ## Layout
 
@@ -64,6 +65,26 @@ rojo serve default.project.json --address 127.0.0.1
 - Tag authoring-only content in Workspace (prefab libraries, reference models, anything the game reads from a copy elsewhere) `EditorOnly`. `Bootstrap.server.luau` moves tagged instances into `ServerStorage.EditorOnly` before any system starts, so they stay editable in Studio but are never replicated to players. Never tag something code reads from Workspace.
 - Server-only code (secrets, rules, data) belongs in `src/server`. Everything in `src/shared` is visible to clients.
 - Put tunable constants in `src/shared/Config` as frozen tables, or in server modules if clients must not see them.
+- Generate the economy from a few knobs instead of typing prices. One Config module (for example `Config/Economy.luau`) holds the knobs (base cost, growth per tier, income as a share of cost, tier count) and builds the whole ladder from them, rounded to clean numbers. Shops, UI and rewards read the generated ladder; no price is typed anywhere else. A rebalance then changes two or three knobs, not values spread across files. After a change, print the ladder (tier, cost, income, seconds to afford the next tier) and check the curve.
+
+```lua
+--!strict
+
+local knobs = table.freeze({ BaseCost = 50, Growth = 1.6, IncomeRatio = 0.08, Tiers = 12 })
+
+local function round(value: number): number
+	local magnitude = 10 ^ math.max(0, math.floor(math.log10(value)) - 1)
+	return math.floor(value / magnitude + 0.5) * magnitude
+end
+
+local ladder = {}
+for tier = 1, knobs.Tiers do
+	local cost = round(knobs.BaseCost * knobs.Growth ^ (tier - 1))
+	ladder[tier] = table.freeze({ Tier = tier, Cost = cost, Income = cost * knobs.IncomeRatio })
+end
+
+return table.freeze({ Knobs = knobs, Ladder = table.freeze(ladder) })
+```
 - Put pure logic in plain modules (such as `src/server/Data`) with no service dependencies.
 - Keep `src/shared` tidy: its root holds only the framework (`Lifecycle`, `Packet`, `Packets`) and folders. Reusable, game-agnostic helpers used by more than one system go in `src/shared/Utils` (such as `Utils/RateLimit`), one module per helper. Server-only helpers go in `src/server/Utils`. Helpers used by a single system stay inside that system's folder.
 
@@ -175,6 +196,16 @@ return ShopService
 - Use the Roblox Studio MCP tools to create and edit UI in StarterGui: inspect the existing tree, add ScreenGuis and elements, and take screenshots to check the result.
 - If no Roblox Studio MCP is connected, do not fall back to building UI in code. Tell the user to set it up using https://create.roblox.com/docs/studio/mcp, and continue with the code side (the screen module) meanwhile.
 - UI in StarterGui is saved in the place file, not on disk; Rojo does not sync it. Remind the user to save the place after UI changes.
+- Size and position with Scale, not Offset. Most players are on phones, and Offset UI that looks right in Studio breaks there. Offset is only for small fixed gaps such as a 4 px border.
+
+| Element | Size with | Also set |
+| --- | --- | --- |
+| ScreenGui elements | `UDim2.fromScale` | `UIAspectRatioConstraint` so square things stay square |
+| Text | `TextScaled = true` | `UITextSizeConstraint` with a `MaxTextSize` |
+| BillboardGui | Scale (studs), so it shrinks with distance | `MaxDistance` so far labels disappear |
+| Mobile buttons | About 8% of screen height or more | Clear of the jump button and top bar |
+
+- Check UI in the Studio Device emulator on a small phone, a tablet and a 1080p screen before calling it done.
 
 ```text
 src/client/Controllers/UIController/
@@ -321,6 +352,16 @@ return function(services: { [string]: any })
 	return Door
 end
 ```
+
+### Assets
+
+Uploaded images, meshes, audio and decals go through Roblox moderation, and a flagged upload can get the owner's account banned. Treat every upload as the user's decision.
+
+- **Never upload without the user's go-ahead.** Do not upload, publish or insert-from-file any asset (Open Cloud API keys, Studio MCP upload tools, or anything else) until the user has reviewed those specific files and said yes. Ask even when an upload tool is available and the asset looks harmless.
+- **Screen every asset first,** including packs the user hands over (such as AI-generated UI). Look at each file and flag anything that could be read as weapons or guns, violence, blood or gore, sexual or suggestive content, drugs, real brands or logos, or offensive text or symbols. Raise flagged files with the user and discuss them; do not silently drop or upload them.
+- **Write an asset overview before any upload:** one row per asset with name, type, where it is used, size and format, status and asset ID. Agree it with the user, upload in one batch, and record every ID.
+- Keep asset IDs in one Config module (for example `Config/Assets.luau`) keyed by the overview's names, so no script hard-codes an ID.
+- Author images at 512 or 1024 px; Roblox downscales anything above 1024x1024.
 
 ### Packages
 
