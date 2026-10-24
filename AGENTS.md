@@ -362,6 +362,11 @@ Uploaded images, meshes, audio and decals go through Roblox moderation, and a fl
 - **Write an asset overview before any upload:** one row per asset with name, type, where it is used, size and format, status and asset ID. Agree it with the user, upload in one batch, and record every ID.
 - Keep asset IDs in one Config module (for example `Config/Assets.luau`) keyed by the overview's names, so no script hard-codes an ID.
 - Author images at 512 or 1024 px; Roblox downscales anything above 1024x1024.
+- The VFX skill (`.claude/skills/roblox-vfx-animation`) can upload through `scripts/upload.mjs` with an Open Cloud key. The rules above apply to it too: no `ROBLOX_API_KEY` is set up for agents, and its textures, meshes and animations are shown to the user before any upload.
+
+### VFX and animation
+
+For any particle, beam, trail, hit, explosion, camera shake or character animation work, use the `roblox-vfx-animation` skill in `.claude/skills/`. It is vendored unmodified from [adnvli/vfxskill](https://github.com/adnvli/vfxskill) at commit `f17b9a6` (MIT); to update, replace the folder with a newer upstream commit and update the commit here. Effects are presentation only: build them in `ReplicatedStorage.VFX`, play them from a controller, and never make game logic wait on them.
 
 ### Packages
 
